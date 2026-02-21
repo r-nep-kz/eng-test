@@ -1,17 +1,10 @@
-import { Round } from './models';
-
-// Типы запросов к API
-
+/** Authentication / registration request */
 export interface AuthRequest {
   username: string;
   password: string;
 }
 
+/** Goose tap request */
 export interface TapRequest {
-  uuid: string;
-}
-
-// Для POST /round - создание раунда (без параметров, но требует авторизации admin)
-export interface CreateRoundRequest {
-  // Пустой объект, так как все параметры вычисляются на сервере
+  roundUuid: string;
 }

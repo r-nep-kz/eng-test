@@ -12,7 +12,7 @@ import { User } from '../models/user.model';
     SequelizeModule.forFeature([User]),
     PassportModule,
     JwtModule.register({
-      secret: process.env.JWT_SECRET || 'your-secret-key',
+      secret: process.env.JWT_SECRET || 'guss-secret-key-change-in-production',
       signOptions: { expiresIn: '24h' },
     }),
   ],

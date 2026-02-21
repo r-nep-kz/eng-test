@@ -1,40 +1,56 @@
-* {
+/* Общие стили приложения — минимум */
+.page-container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  padding: 16px 24px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.page-header h1 {
   margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+  font-size: 1.4rem;
+  color: #333;
 }
 
-body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+.page-header .actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
 
-#root {
-  min-height: 100vh;
-  min-width: 100vw;
+.btn-primary {
+  background-color: #007bff;
+  color: white;
 }
 
-input, button {
-  font-family: inherit;
+.btn-success {
+  background-color: #28a745;
+  color: white;
 }
 
-input:focus, button:focus {
-  outline: none;
+.btn-danger {
+  background-color: #dc3545;
+  color: white;
 }
 
-input:focus {
-  border-color: #007bff !important;
-  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+.error-text {
+  color: #dc3545;
+  font-size: 0.9rem;
+  text-align: center;
 }
 
-button:hover:not(:disabled) {
-  opacity: 0.9;
-  transform: translateY(-1px);
-}
-
-button:active:not(:disabled) {
-  transform: translateY(0);
+.username-badge {
+  font-size: 0.9rem;
+  color: #666;
+  font-weight: 500;
 }

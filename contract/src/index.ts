@@ -1,42 +1,28 @@
-// Экспорт всех типов из contract
 export * from './models';
 export * from './requests';
 export * from './responses';
 
-// Дополнительные утилитарные типы
-export interface ApiEndpoint {
-  url: string;
-  method: 'GET' | 'POST' | 'PUT' | 'DELETE';
-  requiresAuth: boolean;
-  requiresAdmin?: boolean;
+/**
+ * Computes round status based on timestamps.
+ * Shared logic for frontend and backend — single source of truth.
+ */
+export function computeRoundStatus(
+  startDatetime: string | Date,
+  endDatetime: string | Date,
+  now: Date = new Date(),
+): 'cooldown' | 'active' | 'finished' {
+  const start = new Date(startDatetime);
+  const end = new Date(endDatetime);
+
+  if (now < start) return 'cooldown';
+  if (now <= end) return 'active';
+  return 'finished';
 }
 
-// Константы для эндпоинтов
-export const API_ENDPOINTS = {
-  AUTH: {
-    url: '/auth',
-    method: 'POST' as const,
-    requiresAuth: false
-  },
-  ROUNDS: {
-    url: '/rounds',
-    method: 'GET' as const,
-    requiresAuth: true
-  },
-  ROUND: {
-    url: '/round/:uuid',
-    method: 'GET' as const,
-    requiresAuth: true
-  },
-  TAP: {
-    url: '/tap',
-    method: 'POST' as const,
-    requiresAuth: true
-  },
-  CREATE_ROUND: {
-    url: '/round',
-    method: 'POST' as const,
-    requiresAuth: true,
-    requiresAdmin: true
-  }
-} as const;
+/**
+ * Computes score from tap count.
+ * 1 tap = 1 point, every 11th tap awards 10 points.
+ */
+export function computeScoreFromTaps(taps: number): number {
+  return taps + Math.floor(taps / 11) * 9;
+}

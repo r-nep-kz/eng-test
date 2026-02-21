@@ -1,0 +1,69 @@
+.home-page {
+  min-height: 100vh;
+  padding: 20px;
+}
+
+.rounds-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.round-card {
+  background: white;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  cursor: pointer;
+  transition: box-shadow 0.2s;
+  text-decoration: none;
+  color: inherit;
+  display: block;
+}
+
+.round-card:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.round-card-id {
+  font-family: monospace;
+  font-size: 0.9rem;
+  color: #007bff;
+  margin-bottom: 12px;
+}
+
+.round-card-dates {
+  font-size: 0.85rem;
+  color: #666;
+  margin-bottom: 12px;
+  line-height: 1.6;
+}
+
+.round-card-divider {
+  border: none;
+  border-top: 1px solid #eee;
+  margin: 12px 0;
+}
+
+.round-card-status {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.status-active {
+  color: #28a745;
+}
+
+.status-cooldown {
+  color: #007bff;
+}
+
+.status-finished {
+  color: #6c757d;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: #666;
+}

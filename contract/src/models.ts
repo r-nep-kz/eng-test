@@ -1,36 +1,37 @@
-// Базовые модели данных
+/** User roles */
+export type UserRole = 'user' | 'admin' | 'nikita';
 
+/** Computed round status based on timestamps */
+export type RoundStatus = 'cooldown' | 'active' | 'finished';
+
+/** User */
 export interface User {
   login: string;
   password_hash: string;
-  role: 'user' | 'admin';
+  role: UserRole;
 }
 
+/** Round (status computed from timestamps, not stored) */
 export interface Round {
   uuid: string;
-  start_datetime: Date;
-  end_datetime: Date;
-  status: string;
+  created_at: string;
+  start_datetime: string;
+  end_datetime: string;
 }
 
+/** Player score in a round */
 export interface Score {
   user: string;
   round: string;
-  score: number;
   taps: number;
 }
 
-// Дополнительные типы для ответов API
-export interface RoundWithScore {
-  round: Round;
+/** Round with computed status (for API responses) */
+export interface RoundWithStatus extends Round {
+  status: RoundStatus;
 }
 
-export interface RoundWithResults extends RoundWithScore {
-  totalScore: number;
-  bestPlayer: { username: string; score: number } | null;
-  currentUserScore: number;
-}
-
+/** Round's best player */
 export interface BestPlayer {
   username: string;
   score: number;
