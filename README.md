@@ -1,44 +1,96 @@
-# Задание
+# The Last of Guss
 
-Задание проверяет понимание технологий и умение это понимание применять на практике на базе вашего существующего опыта.
+A browser-based clicker game built as a fullstack monorepo. Players tap a goose during timed rounds to earn points. Features JWT authentication, role-based access, real-time countdowns and race-condition-safe tap processing.
 
+## Tech Stack
 
-Репозиторий содержит некоторе решение некоторой задачи. И задача и решене здесь приведены
-только для наглядности. Ответ на каждый вопрос принимается исключительно про ваш реальный опыт над реальным проектом.
-Мы ожидаем развернутых ответов.
+| Layer    | Technology                              |
+|----------|-----------------------------------------|
+| Backend  | NestJS, Sequelize, PostgreSQL, JWT      |
+| Frontend | React 19, Vite, React Router            |
+| Shared   | TypeScript contract package (types + utils) |
 
-Решением задания будет написание ответов на вопросы ниже. Ответ можно отправить в свободной форме.
+## Architecture
 
-## Аутентификация
+```
+eng-test/
+├── contract/   # Shared TypeScript types, score formula, status computation
+├── server/     # NestJS REST API (stateless, horizontally scalable)
+└── client/     # React SPA (Vite dev server)
+```
 
-Для аутентификации в этом репозитории используется jwt токен. Технология известная, зарекомендовавшая себя. 
-Давайте в ней усомнимся. Как минимум - в целесообразности гонять в каждом http запросе такой большой кусок данных.
-Расскажите о проектах с вашим участием, где использовалась другая техника авторизации. 
-Если в таких проектах вы бы могли выбирать - выбрали бы вы аутентификацию через jwt? Если да, то почему?
-В каком проекте, в котором вы участвовали, вы бы наоборот, вместо jwt выбрали что-то другое и почему?
+Key design decisions:
 
-## Идентификация
+- **Computed round status** — status (`cooldown` | `active` | `finished`) is derived from `start_datetime` / `end_datetime` timestamps at read time, never stored. Single source of truth shared between server and client.
+- **Race condition safety** — tap processing uses `SELECT FOR UPDATE` inside a serialized transaction to prevent concurrent score corruption.
+- **Score formula** — `1 tap = 1 point`, every 11th tap awards `10 points` instead of 1.
+- **Nikita rule** — user `Никита` receives HTTP 200 on taps, but the counter is never incremented (score stays 0).
 
-В этом репозтории в некоторых таблицах для идентификации записи используется uuid. Эта техника удобна по нескольким параметрам.
-Сложно представить, чтобы использование uuid во всех таблицах - как стандарта - создало бы где нибудь проблему.
-Но может быть в вашей практике встречались случаи, где uuid как идентификатор стал проблемой или мог бы стать проблемой?
-Опишите где и почему.
+## Prerequisites
 
-## Организация кода
+- **Node.js** >= 20
+- **Docker** (for PostgreSQL)
 
-В этом репозитории, серверный код сделан на базе NestJS. 
-DI, services, controllers, middleware, decorators - в этом, как и во многих других подходах есть плюсы и выгоды.
-Расскажите с примерами из опыта о реальной пользе того или иного механизма организации кода лично для вас или
-для вашей команды, а может быть - для компании. Если есть какой-то механим, который также - для вас, команды 
-или компании наоборот - создавал сложности - тоже расскажите.
+## Quick Start
 
-## Реактивность
+```bash
+# 1. Start PostgreSQL
+docker compose up -d
 
-В этом репозитории, для интерфейса используется React. Его название связано с реактивным подходом к отрисовке
-интерфейса - мы меняем состояние, а интерфейс перерисовывается в соответствии с этим. 
-Сам посыл подкупает - разработчик заботится о состоянии, остальное за него делает фреймворк. 
-Такой подход, конечно, помимо React реализуют и многие другие фреймворки. 
-Были ли ситуации в вашем опыте, когда реактивность была не плюсом, а помехой? Если да, расскажите на примере.
-Если был опыт построения рендера интерфеса на другом принципе, раскажите на каком и какие были резльтаты?
-Расскажите на конкретных примерах, что вам доставляет неудобства в том, как реактивность реализована
-непосредственно во фреймворке React?
+# 2. Configure environment
+cp server/.env.example server/.env
+
+# 3. Build shared contract
+cd contract
+npm install
+npm run build
+
+# 4. Start backend
+cd ../server
+npm install
+npm run build
+npm start
+
+# 5. Start frontend (separate terminal)
+cd ../client
+npm install
+npm run dev
+```
+
+The client runs at `http://localhost:5173`, the API at `http://localhost:3000`.
+
+## Environment Variables
+
+Copy `server/.env.example` to `server/.env` and adjust if needed:
+
+| Variable            | Default                                          | Description                        |
+|---------------------|--------------------------------------------------|------------------------------------|
+| `DB_URI`            | `postgresql://postgres:postgres@localhost:6543/postgres` | PostgreSQL connection string |
+| `PORT`              | `3000`                                           | Server listen port                 |
+| `JWT_SECRET`        | `guss-secret-key-change-in-production`           | JWT signing secret                 |
+| `COOLDOWN_DURATION` | `30`                                             | Seconds before round starts        |
+| `ROUND_DURATION`    | `60`                                             | Round duration in seconds          |
+| `CLIENT_ORIGIN`     | `http://localhost:5173`                          | Allowed CORS origin                |
+
+## Test Credentials
+
+Any username/password pair auto-registers on first login. Pre-configured roles:
+
+| Username  | Password  | Role     | Notes                                 |
+|-----------|-----------|----------|---------------------------------------|
+| `admin`   | `admin`   | admin    | Can create new rounds                 |
+| `roma`    | `roma`    | user     | Regular player                        |
+| `Никита`  | any       | nikita   | Taps accepted but score stays 0       |
+| any other | any       | user     | Auto-registered on first login        |
+
+## API Endpoints
+
+All endpoints except `/auth` require `Authorization: Bearer <token>` header.
+
+| Method | Path           | Description                  | Auth     |
+|--------|----------------|------------------------------|----------|
+| POST   | `/auth`        | Login / register             | No       |
+| GET    | `/rounds`      | List active + cooldown rounds| Yes      |
+| GET    | `/round/:uuid` | Round details + user score   | Yes      |
+| POST   | `/tap`         | Tap the goose                | Yes      |
+| POST   | `/round`       | Create a new round           | Admin    |
