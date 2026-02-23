@@ -2,6 +2,12 @@ import { Table, Column, Model, DataType, ForeignKey, BelongsTo } from 'sequelize
 import { User } from './user.model';
 import { Round } from './round.model';
 
+interface ScoreCreationAttributes {
+  user: string;
+  round: string;
+  taps?: number;
+}
+
 @Table({
   tableName: 'scores',
   timestamps: false,
@@ -9,37 +15,35 @@ import { Round } from './round.model';
     {
       unique: true,
       fields: ['user', 'round'],
-      name: 'unique_user_round'
-    }
-  ]
+      name: 'unique_user_round',
+    },
+  ],
 })
-export class Score extends Model<Score> {
+export class Score extends Model<Score, ScoreCreationAttributes> {
   @ForeignKey(() => User)
   @Column({
     type: DataType.STRING,
     allowNull: false,
   })
-  user: string;
+  user!: string;
 
   @ForeignKey(() => Round)
   @Column({
     type: DataType.UUID,
     allowNull: false,
   })
-  round: string;
+  round!: string;
 
   @Column({
     type: DataType.INTEGER,
     allowNull: false,
     defaultValue: 0,
   })
-  taps: number;
+  taps!: number;
 
   @BelongsTo(() => User)
-  userRef: User;
+  userRef!: User;
 
   @BelongsTo(() => Round)
-  roundRef: Round;
+  roundRef!: Round;
 }
-
-export default Score;

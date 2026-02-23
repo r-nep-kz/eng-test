@@ -1,17 +1,12 @@
 import { SequelizeModuleOptions } from '@nestjs/sequelize';
 import * as dotenv from 'dotenv';
 
-// Load environment variables
 dotenv.config();
 
 export const databaseConfig: SequelizeModuleOptions = {
   dialect: 'postgres',
-  uri: process.env.DB_URI || 'none',
-  models: [__dirname + '/../models/*.model.ts'],
+  uri: process.env.DB_URI || 'postgresql://postgres:postgres@localhost:6543/postgres',
   autoLoadModels: true,
-  synchronize: false, // We'll handle initialization manually
+  synchronize: false,
   logging: false,
-  define: {
-    timestamps: false,
-  },
 };

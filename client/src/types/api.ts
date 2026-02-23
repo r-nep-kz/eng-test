@@ -1,8 +1,7 @@
-// Re-export types from contract package
 export * from '@roundsquares/contract';
 
-// Additional types specific to client
-export interface User {
+/** Decoded JWT payload on client */
+export interface ClientUser {
   username: string;
-  role: 'user' | 'admin';
+  role: 'user' | 'admin' | 'nikita';
 }

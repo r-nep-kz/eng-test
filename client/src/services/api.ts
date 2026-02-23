@@ -1,136 +1,116 @@
-import type { 
-  AuthRequest, 
-  AuthResponse, 
+import type {
+  AuthRequest,
+  AuthResponse,
   RoundsResponse,
-  RoundResponse,
-  RoundWithResultsResponse,
-  TapRequest,
-  TapResponse, 
-  CreateRoundResponse, 
-  User 
+  RoundDetailResponse,
+  RoundFinishedResponse,
+  TapResponse,
+  CreateRoundResponse,
 } from '../types/api';
+import type { ClientUser } from '../types/api';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const TOKEN_KEY = 'auth_token';
 
 class ApiService {
   private getAuthHeaders(): HeadersInit {
-    const token = localStorage.getItem('auth_token');
+    const token = localStorage.getItem(TOKEN_KEY);
     return {
       'Content-Type': 'application/json',
-      ...(token && { 'Authorization': `Bearer ${token}` })
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     };
   }
 
-  async auth(credentials: AuthRequest): Promise<AuthResponse> {
-    const response = await fetch(`${API_URL}/auth`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(credentials),
+  private async request<T>(url: string, options?: RequestInit): Promise<T> {
+    const response = await fetch(`${API_URL}${url}`, {
+      headers: this.getAuthHeaders(),
+      ...options,
     });
 
+    if (response.status === 401) {
+      this.removeToken();
+      window.location.href = '/auth';
+      throw new Error('Unauthorized');
+    }
+
     if (!response.ok) {
-      throw new Error('Authentication failed');
+      const errorData = await response.json().catch(() => ({}));
+      const message = Array.isArray(errorData.message)
+        ? errorData.message.join(', ')
+        : errorData.message || `Request failed with status ${response.status}`;
+      throw new Error(message);
     }
 
     return response.json();
+  }
+
+  async auth(credentials: AuthRequest): Promise<AuthResponse> {
+    return this.request<AuthResponse>('/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(credentials),
+    });
   }
 
   async getRounds(): Promise<RoundsResponse> {
-    const response = await fetch(`${API_URL}/rounds`, {
-      method: 'GET',
-      headers: this.getAuthHeaders(),
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch rounds');
-    }
-
-    return response.json();
+    return this.request<RoundsResponse>('/rounds');
   }
 
-  async getRound(uuid: string): Promise<RoundResponse | RoundWithResultsResponse> {
-    const response = await fetch(`${API_URL}/round/${uuid}`, {
-      method: 'GET',
-      headers: this.getAuthHeaders(),
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch round');
-    }
-
-    return response.json();
+  async getRound(uuid: string): Promise<RoundDetailResponse | RoundFinishedResponse> {
+    return this.request<RoundDetailResponse | RoundFinishedResponse>(`/round/${uuid}`);
   }
 
-  async tap(uuid: string): Promise<TapResponse> {
-    const tapRequest: TapRequest = { uuid };
-    const response = await fetch(`${API_URL}/tap`, {
+  async tap(roundUuid: string): Promise<TapResponse> {
+    return this.request<TapResponse>('/tap', {
       method: 'POST',
-      headers: this.getAuthHeaders(),
-      body: JSON.stringify(tapRequest),
+      body: JSON.stringify({ roundUuid }),
     });
-
-    if (!response.ok) {
-      throw new Error('Failed to perform tap');
-    }
-
-    return response.json();
   }
 
-  async performTap(uuid: string): Promise<TapResponse> {
-    return this.tap(uuid);
+  async createRound(): Promise<CreateRoundResponse> {
+    return this.request<CreateRoundResponse>('/round', {
+      method: 'POST',
+    });
   }
+
+  // --- Token management ---
 
   setToken(token: string): void {
-    localStorage.setItem('auth_token', token);
+    localStorage.setItem(TOKEN_KEY, token);
   }
 
   getToken(): string | null {
-    return localStorage.getItem('auth_token');
+    return localStorage.getItem(TOKEN_KEY);
   }
 
   removeToken(): void {
-    localStorage.removeItem('auth_token');
+    localStorage.removeItem(TOKEN_KEY);
   }
 
   isAuthenticated(): boolean {
     return !!this.getToken();
   }
 
-  async createRound(): Promise<CreateRoundResponse> {
-    const response = await fetch(`${API_URL}/round`, {
-      method: 'POST',
-      headers: this.getAuthHeaders(),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.message || 'Failed to create round');
-    }
-
-    return response.json();
-  }
-
-  decodeToken(): User | null {
+  decodeToken(): ClientUser | null {
     const token = this.getToken();
     if (!token) return null;
 
     try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      return {
-        username: payload.username,
-        role: payload.role
-      };
-    } catch (error) {
-      console.error('Failed to decode token:', error);
+      const base64Payload = token.split('.')[1];
+      if (!base64Payload) return null;
+      const payload = JSON.parse(atob(base64Payload));
+      return { username: payload.username, role: payload.role };
+    } catch {
       return null;
     }
   }
 
   isAdmin(): boolean {
-    const user = this.decodeToken();
-    return user?.role === 'admin';
+    return this.decodeToken()?.role === 'admin';
+  }
+
+  getUsername(): string | null {
+    return this.decodeToken()?.username ?? null;
   }
 }
 

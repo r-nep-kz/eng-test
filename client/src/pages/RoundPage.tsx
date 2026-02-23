@@ -1,98 +1,91 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useParams, Link } from 'react-router-dom';
 import { apiService } from '../services/api';
-import type { RoundResponse, RoundWithResultsResponse } from '../types/api';
+import { computeRoundStatus } from '../utils/round';
+import type { RoundDetailResponse, RoundFinishedResponse } from '../types/api';
 import gussReady from '../assets/guss_ready.png';
 import gussStop from '../assets/guss_stop.png';
 import gussTapped from '../assets/guss_tapped.png';
 import './RoundPage.css';
 
+type RoundData = RoundDetailResponse | RoundFinishedResponse;
+
+function isFinishedResponse(data: RoundData): data is RoundFinishedResponse {
+  return 'totalScore' in data;
+}
+
+const formatTime = (ms: number): string => {
+  if (ms <= 0) return '00:00';
+  const minutes = Math.floor(ms / 60000);
+  const seconds = Math.floor((ms % 60000) / 1000);
+  return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+};
+
 const RoundPage: React.FC = () => {
   const { uuid } = useParams<{ uuid: string }>();
-  const navigate = useNavigate();
-  const [roundData, setRoundData] = useState<RoundResponse | RoundWithResultsResponse | null>(null);
+  const [roundData, setRoundData] = useState<RoundData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isTapping, setIsTapping] = useState(false);
-  const [tapCount, setTapCount] = useState(0);
-  const [needReloadOnFinish, setNeedReloadOnFinish] = useState(false);
+  const [myScore, setMyScore] = useState(0);
+  const hasReloadedOnFinish = useRef(false);
 
-  const fetchRoundData = async () => {
+  const username = apiService.getUsername();
+
+  const fetchRoundData = useCallback(async () => {
     if (!uuid) return;
-    
     try {
       setLoading(true);
       const data = await apiService.getRound(uuid);
       setRoundData(data);
-      setTapCount(0);
-      setNeedReloadOnFinish(new Date(data.round.end_datetime) > new Date());
-    } catch (err) {
+      setMyScore(data.currentUserScore);
+    } catch {
       setError('Ошибка загрузки данных раунда');
-      console.error('Error fetching round data:', err);
     } finally {
       setLoading(false);
     }
-  };
+  }, [uuid]);
 
-
+  // Fetch round data
   useEffect(() => {
-    console.log('needReloadOnFinish', needReloadOnFinish);
-    if (!roundData) return;
+    fetchRoundData();
+  }, [fetchRoundData]);
 
-    const isFinished = new Date() > new Date(roundData?.round.end_datetime);
-    if (isFinished) {
-      fetchRoundData(); // reload data from server
-    }
-  }, [needReloadOnFinish]);
-
-  // Обновляем текущее время каждую секунду
+  // Ticker — update current time every second
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 1000);
-
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  // Загружаем данные раунда
+  // When round finishes — reload data from server (for results)
   useEffect(() => {
+    if (!roundData || hasReloadedOnFinish.current) return;
 
-    fetchRoundData();
-  }, [uuid]);
+    const status = computeRoundStatus(
+      roundData.round.start_datetime,
+      roundData.round.end_datetime,
+      currentTime,
+    );
 
-  // Обработчик тапа
+    if (status === 'finished' && !isFinishedResponse(roundData)) {
+      hasReloadedOnFinish.current = true;
+      fetchRoundData();
+    }
+  }, [currentTime, roundData, fetchRoundData]);
+
+  // Tap handler
   const handleTap = async () => {
-    if (!roundData || isTapping || !uuid) return;
-    
+    if (!uuid || isTapping) return;
     try {
       setIsTapping(true);
       const response = await apiService.tap(uuid);
-      
-      // Обновляем счет только если сервер вернул больше очков, чем отображается
-      if (response.score > tapCount) {
-        setTapCount(response.score);
-      }
-    } catch (err) {
-      console.error('Error performing tap:', err);
+      setMyScore((prev) => Math.max(prev, response.score));
+    } catch {
+      // Tap may have failed (round ended) — ignore
     } finally {
-      setTimeout(() => setIsTapping(false), 100); // Небольшая задержка для визуального эффекта
+      setTimeout(() => setIsTapping(false), 80);
     }
-  };
-
-  // Обработчик зажатия мыши
-  const handleMouseDown = () => {
-    if (!roundData || isTapping) return;
-    setIsTapping(true);
-  };
-
-  const handleMouseUp = () => {
-    setIsTapping(false);
-  };
-
-  // Обработчик отпускания мыши вне элемента
-  const handleMouseLeave = () => {
-    setIsTapping(false);
   };
 
   if (loading) {
@@ -106,157 +99,95 @@ const RoundPage: React.FC = () => {
   if (error || !roundData) {
     return (
       <div className="round-page">
-        <div className="error">{error || 'Раунд не найден'}</div>
-        <button onClick={() => navigate('/')} className="back-button">
-          Вернуться к списку раундов
-        </button>
+        <div className="error">{error ?? 'Раунд не найден'}</div>
+        <Link to="/" className="back-button">Раунды</Link>
       </div>
     );
   }
 
-
   const { round } = roundData;
   const startTime = new Date(round.start_datetime);
   const endTime = new Date(round.end_datetime);
-  
-  // Определяем состояние раунда
-  const isBeforeStart = currentTime < startTime;
-  const isActive = currentTime >= startTime && currentTime <= endTime;
-  const isFinished = currentTime > endTime;
 
-  if (!isBeforeStart && isFinished && needReloadOnFinish) {
-    setNeedReloadOnFinish(false);
-  }
-  
-  // Вычисляем оставшееся время до начала
-  const getTimeUntilStart = () => {
-    const diff = startTime.getTime() - currentTime.getTime();
-    if (diff <= 0) return '00:00:00';
-    
-    const hours = Math.floor(diff / (1000 * 60 * 60));
-    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-    
-    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-  };
+  const status = computeRoundStatus(round.start_datetime, round.end_datetime, currentTime);
+  const isActive = status === 'active';
+  const isCooldown = status === 'cooldown';
+  const isFinished = status === 'finished';
 
-  // Вычисляем оставшееся время до окончания
-  const getTimeUntilEnd = () => {
-    const diff = endTime.getTime() - currentTime.getTime();
-    if (diff <= 0) return '00:00:00';
-    
-    const hours = Math.floor(diff / (1000 * 60 * 60));
-    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-    
-    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-  };
+  const timeUntilStart = startTime.getTime() - currentTime.getTime();
+  const timeUntilEnd = endTime.getTime() - currentTime.getTime();
 
-  const getCurrentImage = () => {
-    if (isTapping) return gussTapped;
+  const getImage = () => {
+    if (isTapping && isActive) return gussTapped;
     if (isActive) return gussReady;
     return gussStop;
   };
 
-  const formatDateTime = (date: Date) => {
-    return date.toLocaleString('ru-RU', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit'
-    });
-  };
+  const statusTitle = isCooldown
+    ? 'Cooldown'
+    : isActive
+      ? 'Раунд активен!'
+      : 'Раунд завершен';
 
   return (
     <div className="round-page">
       <div className="round-header">
-        <button onClick={() => navigate('/')} className="back-button">
-          ← Вернуться к списку раундов
-        </button>
-        <h1>Раунд к={needReloadOnFinish} {round.uuid.slice(0, 8)}</h1>
-      </div>
-
-      <div className="round-info">
-        <div className="round-details">
-          <div className="detail-item">
-            <span className="label">Начало:</span>
-            <span className="value">{formatDateTime(startTime)}</span>
-          </div>
-          <div className="detail-item">
-            <span className="label">Окончание:</span>
-            <span className="value">{formatDateTime(endTime)}</span>
-          </div>
-          <div className="detail-item">
-            <span className="label">Статус:</span>
-            <span className={`status ${isActive ? 'active' : isFinished ? 'finished' : 'waiting'}`}>
-              {isBeforeStart ? 'Ожидание' : isActive ? 'Активен' : 'Завершен'}
-            </span>
-          </div>
-        </div>
-
-        {isBeforeStart && (
-          <div className="countdown">
-            <h2>До начала раунда:</h2>
-            <div className="countdown-timer">{getTimeUntilStart()}</div>
-          </div>
-        )}
-
-        {isActive && (
-          <div className="active-round">
-            <h2>Раунд активен!</h2>
-            <div className="time-remaining">
-              Осталось времени: {getTimeUntilEnd()}
-            </div>
-          </div>
-        )}
-
-        {!isFinished && (
-        <div className="score-section">
-            <h3>Ваш счет: {tapCount}</h3>
-          </div>
-        )}
-
-        {isFinished && 'totalScore' in roundData && roundData.totalScore !== undefined && (
-          <div className="round-results">
-            <h2>Результаты раунда</h2>
-            <div className="results-grid">
-              <div className="result-item">
-                <span className="result-label">Общий счет раунда:</span>
-                <span className="result-value">{roundData.totalScore}</span>
-              </div>
-              {roundData.bestPlayer && (
-                <div className="result-item">
-                  <span className="result-label">Лучший игрок:</span>
-                  <span className="result-value">
-                    {roundData.bestPlayer.username} ({roundData.bestPlayer.score} очков)
-                  </span>
-                </div>
-              )}
-              <div className="result-item">
-                <span className="result-label">Ваш счет:</span>
-                <span className="result-value">{roundData.currentUserScore || tapCount}</span>
-              </div>
-            </div>
-          </div>
-        )}
+        <Link to="/" className="back-button">Раунды</Link>
+        <span className="username-badge">{username}</span>
       </div>
 
       <div className="guss-container">
         <img
-          src={getCurrentImage()}
+          src={getImage()}
           alt="Guss"
           className={`guss-image ${isActive ? 'clickable' : ''} ${isTapping ? 'tapping' : ''}`}
           onClick={isActive ? handleTap : undefined}
-          onMouseDown={isActive ? handleMouseDown : undefined}
-          onMouseUp={isActive ? handleMouseUp : undefined}
-          onMouseLeave={isActive ? handleMouseLeave : undefined}
           draggable={false}
         />
+      </div>
+
+      <div className="round-info">
+        <h2>{statusTitle}</h2>
+
+        {isCooldown && (
+          <div className="countdown">
+            <div className="countdown-label">до начала раунда</div>
+            <div className="countdown-timer">{formatTime(timeUntilStart)}</div>
+          </div>
+        )}
+
         {isActive && (
-          <div className="tap-instruction">
-            Кликайте на Гуса для набора очков!
+          <>
+            <div className="countdown">
+              <div className="countdown-label">До конца осталось:</div>
+              <div className="countdown-timer">{formatTime(timeUntilEnd)}</div>
+            </div>
+            <div className="score-section">
+              <h3>Мои очки — {myScore}</h3>
+            </div>
+          </>
+        )}
+
+        {isFinished && isFinishedResponse(roundData) && (
+          <div className="round-results">
+            <div className="results-grid">
+              <div className="result-item">
+                <span className="result-label">Всего</span>
+                <span className="result-value">{roundData.totalScore}</span>
+              </div>
+              {roundData.bestPlayer && (
+                <div className="result-item">
+                  <span className="result-label">
+                    Победитель — {roundData.bestPlayer.username}
+                  </span>
+                  <span className="result-value">{roundData.bestPlayer.score}</span>
+                </div>
+              )}
+              <div className="result-item">
+                <span className="result-label">Мои очки</span>
+                <span className="result-value">{roundData.currentUserScore}</span>
+              </div>
+            </div>
           </div>
         )}
       </div>

@@ -1,25 +1,38 @@
-import { Round, RoundWithScore, RoundWithResults } from './models';
+import { RoundWithStatus, BestPlayer } from './models';
 
-// Типы ответов от API
-
+/** Authentication response */
 export interface AuthResponse {
   access_token: string;
 }
 
+/** Tap response */
 export interface TapResponse {
-  message: string;
   score: number;
 }
 
-export interface RoundsResponse extends Array<Omit<Round, 'score'>> {}
+/** Rounds list */
+export type RoundsResponse = RoundWithStatus[];
 
-export interface RoundResponse extends RoundWithScore {}
+/** Round details (active / cooldown) */
+export interface RoundDetailResponse {
+  round: RoundWithStatus;
+  currentUserScore: number;
+}
 
-export interface RoundWithResultsResponse extends RoundWithResults {}
+/** Finished round details (with results) */
+export interface RoundFinishedResponse {
+  round: RoundWithStatus;
+  currentUserScore: number;
+  totalScore: number;
+  bestPlayer: BestPlayer | null;
+}
 
-export interface CreateRoundResponse extends Round {}
+/** Create round response */
+export interface CreateRoundResponse {
+  round: RoundWithStatus;
+}
 
-// Типы для ошибок API
+/** API error */
 export interface ApiError {
   statusCode: number;
   message: string | string[];
