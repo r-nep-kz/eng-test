@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Param, UseGuards, Req, ForbiddenException, Body, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Param, UseGuards, Req, ForbiddenException, Body, BadRequestException, NotFoundException } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { GamesService } from './games.service';
 import { 
@@ -7,8 +7,8 @@ import {
   RoundWithResultsResponse, 
   TapRequest, 
   TapResponse, 
-  CreateRoundResponse,
-  RoundWithScore,
+  CreateRoundResponse, 
+  RoundWithScore, 
   RoundWithResults 
 } from '@roundsquares/contract';
 
@@ -27,13 +27,15 @@ export class GamesController {
   async getRound(@Param('uuid') uuid: string, @Req() req: any): Promise<RoundResponse | RoundWithResultsResponse> {
     const round = await this.gamesService.getRoundByUuid(uuid);
     if (!round) {
-      return { error: 'Round not found' } as any;
+      throw new NotFoundException('Round not found');
     }
 
     const score = await this.gamesService.getOrCreateScoreByUserAndRound(req.user.sub, uuid);
+    const currentUserScore = this.gamesService.scoreFromTapsCount(score.taps);
 
     const baseResponse: RoundWithScore = {
       round: round,
+      currentUserScore: currentUserScore,
     };
 
     // Если раунд завершен, добавляем дополнительную информацию
@@ -43,7 +45,7 @@ export class GamesController {
         ...baseResponse,
         totalScore: summary.totalScore,
         bestPlayer: summary.bestPlayer,
-        currentUserScore: this.gamesService.scoreFromTapsCount(score.taps),
+        currentUserScore: currentUserScore,
       };
       return responseWithResults;
     }
