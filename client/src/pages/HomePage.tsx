@@ -42,6 +42,8 @@ export const HomePage: React.FC = () => {
     return () => clearInterval(interval);
   }, [navigate]);
 
+  const currentUser = apiService.decodeToken();
+
   const handleLogout = () => {
     apiService.removeToken();
     navigate('/auth');
@@ -51,10 +53,8 @@ export const HomePage: React.FC = () => {
     try {
       setCreatingRound(true);
       setError('');
-      await apiService.createRound();
-      // Обновляем список раундов
-      const roundsData = await apiService.getRounds();
-      setRounds(roundsData);
+      const newRound = await apiService.createRound();
+      navigate(`/round/${newRound.uuid}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Ошибка создания раунда');
     } finally {
@@ -71,8 +71,11 @@ export const HomePage: React.FC = () => {
       case 'active':
         return '#28a745';
       case 'completed':
+      case 'finished':
         return '#6c757d';
       case 'pending':
+      case 'scheduled':
+      case 'cooldown':
         return '#ffc107';
       default:
         return '#007bff';
@@ -126,7 +129,12 @@ export const HomePage: React.FC = () => {
           <h1 style={{ margin: 0, color: '#333' }}>
             The Last of Guss
           </h1>
-          <div style={{ display: 'flex', gap: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            {currentUser && (
+              <span style={{ color: '#495057', fontSize: '0.95rem' }}>
+                Игрок: <strong>{currentUser.username}</strong> {currentUser.role === 'admin' ? '(Admin)' : ''}
+              </span>
+            )}
             {apiService.isAdmin() && (
               <button
                 onClick={handleCreateRound}

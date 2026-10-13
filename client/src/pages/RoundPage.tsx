@@ -18,6 +18,8 @@ const RoundPage: React.FC = () => {
   const [tapCount, setTapCount] = useState(0);
   const [needReloadOnFinish, setNeedReloadOnFinish] = useState(false);
 
+  const currentUser = apiService.decodeToken();
+
   const fetchRoundData = async () => {
     if (!uuid) return;
     
@@ -25,7 +27,11 @@ const RoundPage: React.FC = () => {
       setLoading(true);
       const data = await apiService.getRound(uuid);
       setRoundData(data);
-      setTapCount(0);
+      if ('currentUserScore' in data && typeof data.currentUserScore === 'number') {
+        setTapCount(data.currentUserScore);
+      } else {
+        setTapCount(0);
+      }
       setNeedReloadOnFinish(new Date(data.round.end_datetime) > new Date());
     } catch (err) {
       setError('Ошибка загрузки данных раунда');
@@ -68,11 +74,7 @@ const RoundPage: React.FC = () => {
     try {
       setIsTapping(true);
       const response = await apiService.tap(uuid);
-      
-      // Обновляем счет только если сервер вернул больше очков, чем отображается
-      if (response.score > tapCount) {
-        setTapCount(response.score);
-      }
+      setTapCount(response.score);
     } catch (err) {
       console.error('Error performing tap:', err);
     } finally {
@@ -175,7 +177,12 @@ const RoundPage: React.FC = () => {
         <button onClick={() => navigate('/')} className="back-button">
           ← Вернуться к списку раундов
         </button>
-        <h1>Раунд к={needReloadOnFinish} {round.uuid.slice(0, 8)}</h1>
+        <h1>Раунд #{round.uuid.slice(0, 8)}</h1>
+        {currentUser && (
+          <div style={{ color: '#495057', fontSize: '0.95rem' }}>
+            Игрок: <strong>{currentUser.username}</strong>
+          </div>
+        )}
       </div>
 
       <div className="round-info">

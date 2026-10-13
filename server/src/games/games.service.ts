@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { Round } from '../models/round.model';
 import { Score } from '../models/score.model';
@@ -18,7 +18,18 @@ export class GamesService {
   ) {}
 
   async getAllRounds(): Promise<Round[]> {
-    return this.roundModel.findAll();
+    const rounds = await this.roundModel.findAll({
+      order: [['start_datetime', 'DESC']],
+    });
+    const now = new Date();
+    for (const round of rounds) {
+      const computedStatus = now < round.start_datetime ? 'scheduled' : (now <= round.end_datetime ? 'active' : 'finished');
+      if (round.status !== computedStatus) {
+        round.status = computedStatus;
+        await round.save();
+      }
+    }
+    return rounds;
   }
 
   async getRoundByUuid(uuid: string): Promise<Round | null> {
@@ -73,26 +84,25 @@ export class GamesService {
   }
 
   async processTap(userId: string, roundUuid: string, role: string): Promise<{ score: number }> {
-    if (role != 'nikita') {
-      // Обновить запись в таблице score
-      await this.scoreModel.increment('taps', {
-        by: 1,
-        where: {
-          user: userId,
-          round: roundUuid,
-        },
-      });
+    const round = await this.roundModel.findByPk(roundUuid);
+    if (!round) {
+      throw new NotFoundException('Round not found');
     }
 
-      const scoreRecord = await this.scoreModel.findOne({
-        where: {
-          user: userId,
-          round: roundUuid,
-        },
-      });
-      const score = this.scoreFromTapsCount(scoreRecord.taps);
+    const now = new Date();
+    if (now < round.start_datetime || now > round.end_datetime) {
+      throw new BadRequestException('Round is not active');
+    }
 
-      return { score };
+    const scoreRecord = await this.getOrCreateScoreByUserAndRound(userId, roundUuid);
+
+    if (role !== 'nikita') {
+      await scoreRecord.increment('taps', { by: 1 });
+      await scoreRecord.reload();
+    }
+
+    const score = this.scoreFromTapsCount(scoreRecord.taps);
+    return { score };
   }
 
   async getRoundSummary(roundUuid: string): Promise<{
